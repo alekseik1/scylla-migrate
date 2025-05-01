@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use scylla::SessionBuilder;
+use scylla::client::session_builder::SessionBuilder;
 use scylla_migrate::Migrator;
 use std::fs;
 use std::path::{Path, PathBuf};

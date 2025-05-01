@@ -24,7 +24,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-scylla-migrate = "0.1.0"
+scylla-migrate = "0.1.1"
 ```
 
 ## Usage

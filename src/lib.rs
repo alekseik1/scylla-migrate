@@ -7,7 +7,7 @@
 //! # Example
 //! ```no_run
 //! use scylla_migrate::Migrator;
-//! use scylla::SessionBuilder;
+//! use scylla::client::session_builder::SessionBuilder;
 //!
 //! async fn migrate() -> anyhow::Result<()> {
 //!     let session = SessionBuilder::new()
@@ -25,7 +25,7 @@ mod migration;
 
 use crate::migration::{AppliedMigration, Migration};
 use anyhow::{Context, Result};
-use scylla::Session;
+use scylla::client::session::Session;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use time::OffsetDateTime;

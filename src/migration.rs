@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use scylla::Session;
+use scylla::client::session::Session;
 use sha2::{Digest, Sha384};
 use std::borrow::Cow;
 
