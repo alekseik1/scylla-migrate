@@ -1,0 +1,67 @@
+x-scylla-common: &scylla-common
+  image: scylladb/scylla:5.2.0
+  healthcheck:
+    test: >
+      nodetool status \
+        | awk '/^[UD][NLJ] / { total++; if ($1 != "UN") bad=1 } \
+              END { exit (total==3 && !bad ? 0 : 1) }'
+    interval: 10s
+    timeout: 10s
+    retries: 60
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: "6G"
+      reservations:
+        cpus: "1.0"
+        memory: "1G"
+services:
+  scylla-node1:
+    <<: *scylla-common
+    container_name: scylla-node1
+    ports:
+      - 9042:9042
+    command: |
+      --reactor-backend=epoll
+      --listen-address scylla-node1
+      --broadcast-address scylla-node1
+      --rpc-address 0.0.0.0
+      --broadcast-rpc-address scylla-node1
+      --smp 1
+      --memory 2G
+    volumes:
+      - ./docker/scylla/cassandra-rackdc-node1.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - ./docker/scylla/scylla.yaml:/etc/scylla/scylla.yaml:ro
+
+  scylla-node2:
+    container_name: scylla-node2
+    <<: *scylla-common
+    command: |
+      --seeds=scylla-node1
+      --reactor-backend=epoll
+      --listen-address scylla-node2
+      --broadcast-address scylla-node2
+      --rpc-address 0.0.0.0
+      --broadcast-rpc-address scylla-node2
+      --smp 1
+      --memory 2G
+    volumes:
+      - ./docker/scylla/cassandra-rackdc-node2.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - ./docker/scylla/scylla.yaml:/etc/scylla/scylla.yaml:ro
+
+  scylla-node3:
+    <<: *scylla-common
+    container_name: scylla-node3
+    command: |
+      --seeds=scylla-node1
+      --reactor-backend=epoll
+      --listen-address scylla-node3
+      --broadcast-address scylla-node3
+      --rpc-address 0.0.0.0
+      --broadcast-rpc-address scylla-node3
+      --smp 1
+      --memory 2G
+    volumes:
+      - ./docker/scylla/cassandra-rackdc-node3.properties:/etc/scylla/cassandra-rackdc.properties:ro
+      - ./docker/scylla/scylla.yaml:/etc/scylla/scylla.yaml:ro
