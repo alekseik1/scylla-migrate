@@ -24,7 +24,7 @@
 mod migration;
 
 use crate::migration::{AppliedMigration, Migration};
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use scylla::client::session::Session;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -32,18 +32,35 @@ use std::path::PathBuf;
 use time::OffsetDateTime;
 use tokio::fs;
 
+fn check_conflicting_files(migrations_path: &PathBuf, name_to_add: &str) -> Result<()> {
+    let version = name_to_add.split("_").next();
+    if version.is_none() {
+        return Ok(());
+    }
+    let version = version.unwrap();
+    for one_entry in std::fs::read_dir(migrations_path)? {
+        let one_entry = one_entry.expect("Failed to read migrations directory entry");
+        let does_contain = one_entry
+            .file_name()
+            .to_str()
+            .and_then(|name| Some(name.contains(version)));
+        if does_contain.unwrap_or(false) {
+            return Err(anyhow!("Conflicting migration file names found"));
+        }
+    }
+    Ok(())
+}
+
 pub fn create_migration(migrations_path: &PathBuf, name: &str) -> Result<()> {
     std::fs::create_dir_all(migrations_path).context("Unable to create migrations directory")?;
 
     let dt = OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)?
-        .replace([':', '-', '.'], "")
-        .split('T')
-        .next()
-        .unwrap()
+        .replace([':', '-', '.', 'Z', 'T'], "")[..17]
         .to_string();
 
     let filename = format!("{}_{}.cql", dt, name);
+    check_conflicting_files(migrations_path, &filename)?;
     let filepath = migrations_path.join(filename);
 
     let content = format!(
@@ -240,6 +257,9 @@ mod tests {
         let migrations_path = temp_dir.path().to_path_buf();
 
         create_migration(&migrations_path, "test1").expect("Failed to create migration");
+        // minimal resolution - 1 ms
+        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+        
         create_migration(&migrations_path, "test2").expect("Failed to create migration");
         let paths: Vec<String> = std::fs::read_dir(&migrations_path)
             .expect("Failed to read migrations directory")
