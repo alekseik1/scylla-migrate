@@ -5,4 +5,3 @@ CREATE TABLE IF NOT EXISTS public.test2
 (
     pk ascii PRIMARY KEY
 );
-

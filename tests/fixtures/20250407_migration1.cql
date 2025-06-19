@@ -4,5 +4,4 @@
 CREATE TABLE IF NOT EXISTS public.test1
 (
     pk int PRIMARY KEY
-)
-
+);
