@@ -1,10 +1,8 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 use scylla::client::session_builder::SessionBuilder;
-use scylla_migrate::Migrator;
-use std::fs;
+use scylla_migrate::{create_migration, Migrator};
 use std::path::{Path, PathBuf};
-use time::OffsetDateTime;
 
 // cargo invokes this binary as `scylla-migrate <args>`
 #[derive(Debug, Parser)]
@@ -55,31 +53,6 @@ async fn main() -> Result<()> {
             run_migrations(&uri, &migrations_path, user, password).await?;
         }
     }
-
-    Ok(())
-}
-
-fn create_migration(migrations_path: &PathBuf, name: &str) -> Result<()> {
-    fs::create_dir_all(migrations_path).context("Unable to create migrations directory")?;
-
-    let dt = OffsetDateTime::now_utc()
-        .format(&time::format_description::well_known::Rfc3339)?
-        .replace([':', '-', '.'], "")
-        .split('T')
-        .next()
-        .unwrap()
-        .to_string();
-
-    let filename = format!("{}_{}.cql", dt, name);
-    let filepath = migrations_path.join(filename);
-
-    let content = format!(
-        "-- Migration: {}\n-- Timestamp: {}\n\n-- Add your CQL queries here\n",
-        name, dt
-    );
-
-    fs::write(&filepath, content)?;
-    println!("Created migration: {:?}", filepath);
 
     Ok(())
 }

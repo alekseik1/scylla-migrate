@@ -1,2 +1,0 @@
-# Override only the snitch
-endpoint_snitch: GossipingPropertyFileSnitch

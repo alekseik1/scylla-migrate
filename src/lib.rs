@@ -28,8 +28,34 @@ use anyhow::{Context, Result};
 use scylla::client::session::Session;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use time::OffsetDateTime;
 use tokio::fs;
+
+pub fn create_migration(migrations_path: &PathBuf, name: &str) -> Result<()> {
+    std::fs::create_dir_all(migrations_path).context("Unable to create migrations directory")?;
+
+    let dt = OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)?
+        .replace([':', '-', '.'], "")
+        .split('T')
+        .next()
+        .unwrap()
+        .to_string();
+
+    let filename = format!("{}_{}.cql", dt, name);
+    let filepath = migrations_path.join(filename);
+
+    let content = format!(
+        "-- Migration: {}\n-- Timestamp: {}\n\n-- Add your CQL queries here\n",
+        name, dt
+    );
+
+    std::fs::write(&filepath, content)?;
+    println!("Created migration: {:?}", filepath);
+
+    Ok(())
+}
 
 /// Main runner for executing database migrations
 #[derive(Debug)]
@@ -120,8 +146,8 @@ impl<'a> Migrator<'a> {
         Ok(map)
     }
 
-    async fn load_migrations(&self) -> Result<Vec<Migration>> {
-        let mut entries = fs::read_dir(&self.migrations_src)
+    async fn load_migrations(migrations_src: &str) -> Result<Vec<Migration>> {
+        let mut entries = fs::read_dir(migrations_src)
             .await
             .context("Could not find migrations directory")?;
 
@@ -173,7 +199,7 @@ impl<'a> Migrator<'a> {
         self.create_public_keyspace().await?;
         self.create_migration_table().await?;
 
-        let migrations = self.load_migrations().await?;
+        let migrations = Migrator::load_migrations(self.migrations_src).await?;
         let applied_migrations = self.get_applied_migrations().await?;
         for migration in migrations {
             if let Some(applied) = applied_migrations.get(&migration.version) {
@@ -199,5 +225,40 @@ impl<'a> Migrator<'a> {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_create_migration_in_same_day_would_give_different_versions() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let migrations_path = temp_dir.path().to_path_buf();
+
+        create_migration(&migrations_path, "test1").expect("Failed to create migration");
+        create_migration(&migrations_path, "test2").expect("Failed to create migration");
+        let paths: Vec<String> = std::fs::read_dir(&migrations_path)
+            .expect("Failed to read migrations directory")
+            .map(|entry| {
+                entry
+                    .expect("Failed to read migrations directory entry")
+                    .path()
+                    .file_name()
+                    .expect("Failed to get file name")
+                    .to_owned()
+                    .into_string()
+                    .expect("Failed to convert file name to string")
+            })
+            .collect();
+        assert_eq!(paths.len(), 2);
+        let migrations = Migrator::load_migrations(migrations_path.to_str().unwrap())
+            .await
+            .unwrap();
+        let unique_versions: HashSet<_> = migrations.iter().map(|m| m.version).collect();
+        assert_eq!(unique_versions.len(), 2);
     }
 }
