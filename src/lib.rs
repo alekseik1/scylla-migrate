@@ -56,7 +56,7 @@ pub fn create_migration(migrations_path: &PathBuf, name: &str) -> Result<()> {
 
     let dt = OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)?
-        .replace([':', '-', '.', 'Z', 'T'], "")[..17]
+        .replace([':', '-', '.', 'Z', 'T'], "")[..14]
         .to_string();
 
     let filename = format!("{}_{}.cql", dt, name);
@@ -251,15 +251,30 @@ mod tests {
     use std::collections::HashSet;
     use tempfile::TempDir;
 
+    fn get_migrations_path() -> PathBuf {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        temp_dir.path().to_path_buf()
+    }
+
+    #[tokio::test]
+    async fn test_cannot_create_migrations_at_same_time() {
+        let migrations_path = get_migrations_path();
+        create_migration(&migrations_path, "test1").expect("Failed to create migration");
+        let m = create_migration(&migrations_path, "test2");
+        assert!(m
+            .unwrap_err()
+            .to_string()
+            .contains("Conflicting migration file names found"),);
+    }
+
     #[tokio::test]
     async fn test_create_migration_in_same_day_would_give_different_versions() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        let migrations_path = temp_dir.path().to_path_buf();
+        let migrations_path = get_migrations_path();
 
         create_migration(&migrations_path, "test1").expect("Failed to create migration");
-        // minimal resolution - 1 ms
-        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-        
+        // minimal resolution - 1 sec
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
         create_migration(&migrations_path, "test2").expect("Failed to create migration");
         let paths: Vec<String> = std::fs::read_dir(&migrations_path)
             .expect("Failed to read migrations directory")
